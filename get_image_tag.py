@@ -9,6 +9,7 @@ from urllib.request import urlopen
 from multiprocessing import Pool
 import csv
 import os
+import shutil
 
 def info():
 
@@ -97,7 +98,7 @@ def MakeTag(datas):
     values, counts = zip(*c.most_common())
     return values, counts
 
-def Makecocodata(obj,savename,tagsavename):
+def Makecocodata(obj,savename,tagsavename,fulldataname):
     #タグを整理する
     print("tag")
     tags, counts = MakeTag(obj["image"])
@@ -135,7 +136,16 @@ def Makecocodata(obj,savename,tagsavename):
     
     with open(savename,'w',encoding = "utf8") as fw:
         json.dump(js,fw,indent=2, ensure_ascii=False)
+    with open(fulldataname,'w',encoding = "utf8") as fw:
+        json.dump(obj,fw,indent=1, ensure_ascii=False)
 
+
+def SaveFile(tmages_tmp,count):
+    Makecocodata(tmages_tmp,'coco/cocodata_'+ str(count) + '/cocodata_'+ str(count) +'.json',
+                            'coco/cocodata_'+ str(count)  + '/tagdata_' + str(count) +'.csv',
+                            'coco/cocodata_'+ str(count)  + '/fulldata_'+ str(count) +'.json')
+    shutil.make_archive('coco/cocodata_'+ str(count), format='zip', root_dir='coco/cocodata_'+ str(count) )
+    shutil.rmtree('coco/cocodata_'+ str(count))
 def main():
     tmages_ = cl.OrderedDict()
     image_list = []
@@ -149,14 +159,19 @@ def main():
         os.makedirs("coco")
     except FileExistsError:
         pass
-    for j,I in enumerate( range(10876227,6876227,-1)):
+    for j,I in enumerate( range(10900000,10000000,-1)):
     
         tmp = cl.OrderedDict()
         URL = "https://seiga.nicovideo.jp/seiga/im" + str(I)
-        print(URL)
-        html = urlopen(URL).read()
-        soup = BeautifulSoup(html, "html.parser")
-
+        while True:
+            try:
+                print(URL)
+                html = urlopen(URL).read()
+                soup = BeautifulSoup(html, "html.parser")
+                break
+            except:
+                print('Error')
+                time.sleep(1)
         lg_ttl_illust = soup.find_all('div',class_='lg_ttl_illust')
         if len(lg_ttl_illust) > 0:
             tmp["id"] = "im" + str(I)
@@ -183,15 +198,25 @@ def main():
 
         time.sleep(1)
         #定期的に保存
-        if j%1000000 == 999999:
+        if j%100000 == 99999:
+        #if j%10 == 9:
+
             tmages_tmp = cl.OrderedDict()
             tmages_tmp["image"] = image_list
-            Makecocodata(tmages_tmp,'coco/cocodata_'+ str(count) +'.json','tag/' + 'tagdata_' + str(count) +'.csv')
+            try:
+                os.makedirs('coco/cocodata_'+ str(count) )
+            except FileExistsError:
+                pass
+            try:
+                os.makedirs('tag/tagdata_' + str(count))
+            except FileExistsError:
+                pass
+            SaveFile(tmages_tmp=tmages_tmp,count=count)
             count = count + 1
             image_list = []
+            
 
     tmages_["image"] = image_list
-    Makecocodata(tmages_tmp,'coco/cocodata_'+ str(count) +'.json','tag/' + 'tagdata_' + str(count) +'.csv')
-
+    SaveFile(tmages_tmp=tmages_tmp,count=count)
 if __name__ == '__main__':
     main()
